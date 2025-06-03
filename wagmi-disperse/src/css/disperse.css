@@ -243,7 +243,8 @@ input[type="submit"]:disabled {
   margin-bottom: 1.4rem;
 }
 
-.chooser label {
+.chooser label,
+.chooser span {
   margin-right: .25rem;
   font-size: 2.2rem;
 }
@@ -280,6 +281,19 @@ header sup {
 header a {
   font-size: 1.4rem;
   margin-right: 1.4rem;
+}
+
+/* Link button styles */
+.link-button {
+  font-size: 1.4rem;
+  margin-right: 1.4rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .eth svg path {

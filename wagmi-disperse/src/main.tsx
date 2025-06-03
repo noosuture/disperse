@@ -1,4 +1,4 @@
-import { Buffer } from "buffer";
+import { Buffer as BufferPolyfill } from "buffer";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -13,20 +13,18 @@ import "./css/disperse.css";
 
 // Add Buffer to globalThis with proper type declaration
 declare global {
-  interface Window {
-    Buffer: typeof Buffer;
-  }
-  interface globalThis {
-    Buffer: typeof Buffer;
-  }
+  var Buffer: typeof BufferPolyfill;
 }
 
 // Now we can set Buffer on globalThis
-(globalThis as any).Buffer = Buffer;
+globalThis.Buffer = BufferPolyfill;
 
 const queryClient = new QueryClient();
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("Failed to find root element");
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
