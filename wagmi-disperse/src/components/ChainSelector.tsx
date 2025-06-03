@@ -86,7 +86,7 @@ export function ChainSelector() {
   // Get a chain name with reasonable length
   const formatChainName = (name: string) => {
     // Remove redundant words and limit length
-    return name.replace(" Mainnet", "").replace(" Network", "").replace(" Chain", "");
+    return name;
   };
 
   // Handle click outside to close dropdown
