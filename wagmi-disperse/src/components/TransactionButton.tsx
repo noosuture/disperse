@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { BaseError } from "viem";
 import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { erc20 } from "../contracts";
 import { disperse_legacy } from "../deploy";
+import { disperseAbi } from "../generated";
 import { explorerTx } from "../networks";
 import type { Recipient, TokenInfo } from "../types";
-import { disperseAbi } from "../generated";
 
 interface TransactionButtonProps {
   show?: boolean;
@@ -18,6 +19,7 @@ interface TransactionButtonProps {
   token: TokenInfo;
   contractAddress?: `0x${string}`; // Optional contract address override
   className?: string; // Additional class names for styling
+  account?: `0x${string}`; // User account for query invalidation
 }
 
 const TransactionButton = ({
@@ -31,9 +33,11 @@ const TransactionButton = ({
   token,
   contractAddress: customAddress,
   className = "",
+  account,
 }: TransactionButtonProps) => {
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const queryClient = useQueryClient();
 
   // Use the contract address from props, falling back to legacy address if not provided
   const contractAddress = customAddress || (disperse_legacy.address as `0x${string}`);
@@ -56,6 +60,55 @@ const TransactionButton = ({
       setErrorMessage((writeError as BaseError).shortMessage || writeError.message || "Transaction failed");
     }
   }, [isWriteError, writeError]);
+
+  // Invalidate queries after successful transactions
+  useEffect(() => {
+    if (isConfirmed && account) {
+      if (action === "approve" || action === "deny") {
+        // Invalidate allowance queries to refetch fresh data
+        if (token.address && contractAddress) {
+          queryClient.invalidateQueries({
+            queryKey: [
+              "readContract",
+              {
+                address: token.address,
+                functionName: "allowance",
+                args: [account, contractAddress],
+                chainId,
+              },
+            ],
+          });
+          console.log(`[TransactionButton] Invalidated allowance queries for ${action} transaction`);
+        }
+      }
+
+      if (action === "disperseToken" || action === "approve" || action === "deny") {
+        // Invalidate balance queries for token transactions
+        if (token.address) {
+          queryClient.invalidateQueries({
+            queryKey: [
+              "readContract", 
+              {
+                address: token.address,
+                functionName: "balanceOf",
+                args: [account],
+                chainId,
+              },
+            ],
+          });
+          console.log(`[TransactionButton] Invalidated token balance queries for ${action} transaction`);
+        }
+      }
+
+      if (action === "disperseEther") {
+        // Invalidate ETH balance queries for ether transactions
+        queryClient.invalidateQueries({
+          queryKey: ["balance", { address: account, chainId }],
+        });
+        console.log(`[TransactionButton] Invalidated ETH balance queries for ${action} transaction`);
+      }
+    }
+  }, [isConfirmed, action, token.address, account, contractAddress, chainId, queryClient]);
 
   const handleClick = async () => {
     setErrorMessage("");
@@ -137,10 +190,7 @@ const TransactionButton = ({
             address: token.address,
             abi: erc20.abi,
             functionName: "approve",
-            args: [
-              contractAddress,
-              0n,
-            ],
+            args: [contractAddress, 0n],
           },
           {
             onSuccess(hash) {
@@ -152,9 +202,9 @@ const TransactionButton = ({
           },
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Transaction error:", error);
-      setErrorMessage((error as BaseError)?.shortMessage || error?.message || "Transaction failed");
+      setErrorMessage((error as BaseError)?.shortMessage || (error as Error)?.message || "Transaction failed");
     }
   };
 
@@ -168,13 +218,7 @@ const TransactionButton = ({
         type="submit"
         value={title}
         onClick={handleClick}
-        disabled={
-          disabled ||
-          isWritePending ||
-          isConfirming ||
-          isBytecodeLoading ||
-          !isContractDeployed
-        }
+        disabled={disabled || isWritePending || isConfirming || isBytecodeLoading || !isContractDeployed}
       />
       <div className="status">
         {message && <div>{message}</div>}
@@ -182,9 +226,7 @@ const TransactionButton = ({
         {!isBytecodeLoading && !isContractDeployed && !errorMessage && (
           <div className="failed">disperse contract not deployed</div>
         )}
-        {isWritePending && (
-          <div className="pending">sign transaction with wallet</div>
-        )}
+        {isWritePending && <div className="pending">sign transaction with wallet</div>}
         {isConfirming && <div className="pending">transaction pending</div>}
         {isConfirmed && <div className="success">transaction success</div>}
         {errorMessage && <div className="failed">{errorMessage}</div>}
